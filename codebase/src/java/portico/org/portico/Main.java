@@ -14,6 +14,8 @@
  */
 package org.portico;
 
+import java.util.Arrays;
+
 import org.portico.container.Container;
 import org.portico.lrc.PorticoConstants;
 import org.portico.utils.SystemInformation;
@@ -47,6 +49,47 @@ public class Main
 	//                     STATIC METHODS
 	//----------------------------------------------------------
 	public static void main( String[] args )
+	{
+		if( args.length == 0 )
+			printSystemInformation();
+		
+		if( args[0].equals("wanrouter") )
+		{
+			if( args.length == 1 )
+			{
+				startWanRouter( new String[]{"-port", "12001"} );
+			}
+			else
+			{
+    			String[] modifiedArgs = new String[args.length-1];
+    			for( int i = 1; i < args.length; i++ )
+    				modifiedArgs[i-1] = args[i];
+
+    			startWanRouter( modifiedArgs );
+			}
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// Start WAN Router ////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////
+	private static void startWanRouter( String[] args )
+	{
+		System.out.println( "Starting Portico WAN Router: "+Arrays.toString(args) );
+		try
+		{
+			org.jgroups.stack.GossipRouter.main( args );
+		}
+		catch( Exception e )
+		{
+			e.printStackTrace();
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// Print System Information ////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////
+	private static void printSystemInformation()
 	{
 		// load the Container which loads the RID file
 		Container.instance();

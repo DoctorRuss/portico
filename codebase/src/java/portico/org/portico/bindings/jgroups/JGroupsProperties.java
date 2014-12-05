@@ -64,6 +64,10 @@ public class JGroupsProperties
 	public static long RESPONSE_TIMEOUT =
 		Long.parseLong(System.getProperty(PROP_JGROUPS_TIMEOUT,"1000") );
 
+	
+	///// wan properties /////////////////////////////////////////////////////////////////////
+	public static final String PROP_JGROUPS_WAN_ENABLED = "portico.wan.enabled";
+	
 	//----------------------------------------------------------
 	//                   INSTANCE VARIABLES
 	//----------------------------------------------------------

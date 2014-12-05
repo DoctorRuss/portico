@@ -268,3 +268,29 @@
 # portico.jgroups.loglevel = OFF
 # portico.jgroups.timeout = 1000
 
+
+# =========================================
+# 5. WAN Connection Options
+# =========================================
+
+# (5.1) WAN Mode Enable/Disable
+#       If true, WAN mode will be enabled and the alternate JGroups stack will be used.
+#       This will disable UDP messages on the local network, instead sending them to the
+#       router at the location specified in further down in the configuration.
+#
+#       Default: false
+#
+#       Note: For this mode to function correctly, the WAN router must be running BEFORE
+#             the federate starts. If it is not, the federate may appear to start correctly,
+#             but it will not communicate with other federates.
+#       
+portico.wan.enabled = true
+
+# (5.2) Router Address/Port
+#       This setting specifies the address and port of the WAN router to use. Note that the
+#       syntax is "address[port]".
+#
+#       Default: 127.0.0.1[12001]
+portico.wan.router = 127.0.0.1[12001]
+
+

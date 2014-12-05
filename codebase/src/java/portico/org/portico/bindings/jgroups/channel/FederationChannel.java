@@ -185,8 +185,21 @@ public class FederationChannel
 	 */
 	private JChannel constructChannel() throws Exception
 	{
-		JChannel channel = new JChannel( "etc/jgroups-udp.xml" );
-		
+		// create a different channel depending on whether we are trying to use the WAN
+		// or local network infrastructure
+		JChannel channel = null;
+		boolean wanEnabled = System.getProperty("portico.wan.enabled","false").equals("true");
+		if( wanEnabled )
+		{
+			logger.info( "WAN mode has been enabled" );
+			channel = new JChannel( "etc/jgroups-tunnel.xml" );
+		}
+		else
+		{
+			channel = new JChannel( "etc/jgroups-udp.xml" );
+		}
+
+
 		// if we're not using daemon threads, return without resetting the thread groups
 		if( JGroupsProperties.useDaemonThreads() == false )
 			return channel;
