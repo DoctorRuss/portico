@@ -19,6 +19,7 @@ import java.util.Arrays;
 import org.portico.container.Container;
 import org.portico.lrc.PorticoConstants;
 import org.portico.utils.SystemInformation;
+import org.portico.utils.logging.Log4jConfigurator;
 
 /**
  * This class exists inside the Portico jar file to provide diagnoistic information as
@@ -53,8 +54,16 @@ public class Main
 		if( args.length == 0 )
 			printSystemInformation();
 		
+		/////////////////////////////////////
+		// Should we start the WAN Router? //
+		/////////////////////////////////////
 		if( args[0].equals("wanrouter") )
 		{
+			// configure logging first
+			//Container.instance();
+			Log4jConfigurator.bootstrapLogging();
+			Log4jConfigurator.setLevel( "INFO", "org.jgroups" );
+			
 			if( args.length == 1 )
 			{
 				startWanRouter( new String[]{"-port", "12001"} );
