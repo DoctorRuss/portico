@@ -27,12 +27,6 @@
             timeout="${portico.jgroups.fd.timeout:8500}"
             msg_counts_as_heartbeat="${portico.jgroups.fd.countMessages:false}"/>
 
-    <!-- More failure detection. This one has a ring of TCP sockets where
-         neighbours link up and catch when the socket closes. Not sure if
-         this is a good things or not for our federation, but let's say yes
-         for now and disable it later if we want -->
-    <!--<FD_SOCK/>-->
-
     <!-- When we think we have a dead federate, as determined by the FD protocols,
          we need to finally verify this. VERIFY_SUSPECT will ping the suspect,
          waiting at most timeout millis before giving up and calling it dead -->
@@ -85,9 +79,6 @@
 
     <!-- FRAG2 breaks up large messages into smaller sizes so they can be send in chunks -->
     <FRAG2 frag_size="60k"/>
-
-    <!-- Handles streaming state transfer when applications join a channel -->
-    <pbcast.STATE_TRANSFER/>
 
     <!-- FLUSH forces all group members to send all pending messages prior to
          some event such as the joining of a new member -->

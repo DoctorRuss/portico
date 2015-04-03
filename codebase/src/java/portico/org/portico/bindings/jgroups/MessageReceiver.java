@@ -1,5 +1,5 @@
 /*
- *   Copyright 2012 The Portico Project
+ *   Copyright 2015 The Portico Project
  *
  *   This file is part of portico.
  *
@@ -71,21 +71,21 @@ public class MessageReceiver
 		
 		try
 		{
-    		// fetch the payload from the message
-    		PorticoMessage payload = MessageHelpers.inflate( message.getBuffer(),
-    		                                                 PorticoMessage.class,
-    		                                                 lrc );
-    		
-    		// if we get null back, it means we should stop processing now
-    		if( payload == null )
-   				return;
-    		
-    		// log an audit entry for the reception
-    		if( auditor.isRecording() )
-    			auditor.received( payload, message.getLength() );
-    		
-    		// shove into our queue for later processing
-    		lrc.getState().getQueue().offer( payload );
+			// fetch the payload from the message
+			PorticoMessage payload = MessageHelpers.inflate( message.getBuffer(),
+			                                                 PorticoMessage.class,
+			                                                 lrc );
+			
+			// if we get null back, it means we should stop processing now
+			if( payload == null )
+					return;
+			
+			// log an audit entry for the reception
+			if( auditor.isRecording() )
+				auditor.received( payload, message.getLength() );
+			
+			// shove into our queue for later processing
+			lrc.getState().getQueue().offer( payload );
 		}
 		catch( Exception e )
 		{
@@ -128,3 +128,4 @@ public class MessageReceiver
 	//                     STATIC METHODS
 	//----------------------------------------------------------
 }
+

@@ -1,5 +1,5 @@
 /*
- *   Copyright 2012 The Portico Project
+ *   Copyright 2015 The Portico Project
  *
  *   This file is part of portico.
  *
@@ -14,6 +14,10 @@
  */
 package org.portico.bindings.jgroups.channel;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.apache.log4j.Logger;
@@ -24,7 +28,7 @@ import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.util.DefaultThreadFactory;
 import org.jgroups.util.Util;
 import org.portico.bindings.jgroups.Auditor;
-import org.portico.bindings.jgroups.JGroupsProperties;
+import org.portico.bindings.jgroups.Configuration;
 import org.portico.bindings.jgroups.MessageReceiver;
 import org.portico.lrc.LRC;
 import org.portico.lrc.PorticoConstants;
@@ -35,15 +39,14 @@ import org.portico.lrc.compat.JFederationExecutionDoesNotExist;
 import org.portico.lrc.compat.JRTIinternalError;
 import org.portico.lrc.model.ObjectModel;
 import org.portico.lrc.utils.MessageHelpers;
-import org.portico.utils.logging.Log4jConfigurator;
 import org.portico.utils.messaging.PorticoMessage;
 
 /**
  * This class represents a channel devoted to supporting an active Portico Federation.
- * Convenience methods are provided here to manage the joining of the federation and the
- * sending of asynchronous and synchronous messages.
+ * Convenience methods are provided here to manage members joining and resigning from
+ * a federation and the sending of messages within the group.
  */
-public class FederationChannel
+public class Channel
 {
 	//----------------------------------------------------------
 	//                    STATIC VARIABLES
@@ -58,8 +61,8 @@ public class FederationChannel
 	//                   INSTANCE VARIABLES
 	//----------------------------------------------------------
 	protected Logger logger;
-	protected String federationName;
-	
+	private String channelName;
+
 	// write metadata about incoming/outgoing message flow
 	private Auditor auditor;
 
@@ -67,27 +70,22 @@ public class FederationChannel
 	protected boolean connected;
 	protected JChannel jchannel;
 	private MessageDispatcher jdispatcher;
-	private FederationListener jlistener;
-	
+	private ChannelListener jlistener;
+
+	// gateway to pass received messages back
 	protected MessageReceiver receiver;
 
 	// federation and shared state
-	protected FederationManifest manifest;
+	protected Manifest manifest;
 
 	//----------------------------------------------------------
 	//                      CONSTRUCTORS
 	//----------------------------------------------------------
-	public FederationChannel( String federationName )
+	public Channel( String name )
 	{
-		this.federationName = federationName;
+		this.channelName = name;
 		this.logger = Logger.getLogger( "portico.lrc.jgroups" );
-		
-		// set the appropriate level for the jgroups logger, by default we'll just turn it
-		// off because it is quite noisy. that said, we will allow for it to be turned back
-		// on via a configuration property
-		String jglevel = System.getProperty( JGroupsProperties.PROP_JGROUPS_LOGLEVEL, "OFF" );
-		Log4jConfigurator.setLevel( jglevel, "org.jgroups" );
-		
+				
 		// create this, but leave as disabled for now - gets turned on in joinFederation
 		this.auditor = new Auditor();
 		
@@ -95,113 +93,108 @@ public class FederationChannel
 		this.connected = false;
 		this.jchannel = null;
 		this.jdispatcher = null;
-		this.jlistener = new FederationListener( this );
+		this.jlistener = new ChannelListener( this );
 		
 		this.receiver = new MessageReceiver( this.auditor );
 
-		// the manifest is created in the viewAccepted method which is called
+		// the manifest is created in the viewAccepted ??? method which is called
 		// as soon as we connect to a channel
 		this.manifest = null; 
 	}
 
+
 	//----------------------------------------------------------
 	//                    INSTANCE METHODS
 	//----------------------------------------------------------
-	//////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////// Accessors and Mutators /////////////////////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
-	public boolean isConnected()
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////// Channel Lifecycle Methods /////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////
+	/** Close off the connection to the existing JGroups channel */
+	public void disconnect()
 	{
-		return this.connected;
+		// send a goodbye notification
+		try
+		{
+			Message message = new Message();
+			message.putHeader( ControlHeader.HEADER, ControlHeader.goodbye() );
+			message.setFlag( Flag.DONT_BUNDLE );
+			message.setFlag( Flag.NO_FC );
+			message.setFlag( Flag.OOB );
+			this.jchannel.send( message );
+		}
+		catch( Exception e )
+		{
+			logger.error( "Exception while sending channel goodbye message: "+e.getMessage(), e );
+		}
+
+		// Disconnect
+		this.jchannel.disconnect();
+		this.jchannel.close();
+		this.connected = false;
+		logger.debug( "Connection closed to channel ["+channelName+"]" );
 	}
 
-	public FederationManifest getManifest()
-	{
-		return this.manifest;
-	}
-
-	//////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////// Connection Management //////////////////////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
 	/**
-	 * This method will connect us to the federation channel. It is important to note that
-	 * connecting to a channel does not mean we are part of a federation. When we connect,
-	 * we are put in a kind of "lurker" state. We have the manifest, but there might not be an
-	 * active federation associated with it, and even if there is, we haven't joined that
-	 * federation yet. The {@link #createFederation(ObjectModel)} and {@link #joinFederation(String)}
-	 * calls are what put an active federation in a channel and allow us to participate in it
-	 * respectively.
-	 * 
-	 * @throws JRTIinternalError If there is a problem connecting to or fetching state from
-	 *                           the federation channel.
+	 * Create the underlying JGroups channel and connect to it. If we have WAN support
+	 * enabled then we will create a slightly different protocol stack based on the
+	 * configuration. Should we be unable to create or connect to the channel, a generic
+	 * internal error exception will be thrown.
 	 */
 	public void connect() throws JRTIinternalError
 	{
+		// connect to the channel
 		if( this.isConnected() )
 			return;
 		
 		try
 		{
-			logger.trace( "ATTEMPT Connecting to channel ["+federationName+"]" );
+			logger.trace( "ATTEMPT Connecting to channel ["+channelName+"]" );
+
+			// set the channel up
+			this.jchannel = constructChannel();
+			this.jdispatcher = new MessageDispatcher( jchannel, jlistener, jlistener, jlistener );
+
+			// connects to the channel and fetches state in single action
+			this.jchannel.connect( channelName );
 			
-    		// set the channel up
-    		this.jchannel = constructChannel();
-    		this.jdispatcher = new MessageDispatcher( jchannel, jlistener, jlistener, jlistener );
-    		
-    		// connects to the channel and fetches state in single action
-    		//  *null indicates we get state from the coordinator (rather than a specific member)
-    		//  *the timeout is how long we want to wait for the state
-    		//  *the true will trigger jgroups to use a FLUSH on our join
-    		this.jchannel.connect( federationName, null, JGroupsProperties.getJoinTimeout(), true );
-    		
-    		// make sure we connected successfully
-    		if( this.isConnected() == false )
-    			throw new JRTIinternalError( "Connection to channel failed, consult log for error" );
-    		
-    		logger.debug( "SUCCESS Connected to channel ["+federationName+"]" );
+			// find the coordinator
+			this.findCoordinator();
+			
+			// all done
+			this.connected = true;
+			logger.debug( "SUCCESS Connected to channel ["+channelName+"]" );
 		}
 		catch( Exception e )
 		{
-			logger.error( "ERROR Failed to connect to channel ["+federationName+"]: "+
+			logger.error( "ERROR Failed to connect to channel ["+channelName+"]: "+
 			              e.getMessage(), e );
 			throw new JRTIinternalError( e.getMessage(), e );
 		}
 	}
-
+	
 	/**
-	 * Close the channel off and set out connected status to false.
-	 */
-	public void disconnect()
-	{
-		this.jchannel.disconnect();
-		this.jchannel.close();
-		this.connected = false;
-		logger.debug( "Connection closed to channel ["+federationName+"]" );
-	}
-
-	/**
-	 * This method constructs the channel, including any nitty-gritty details (such as
-	 * thread pool details or the like).
+	 * This method constructs the channel, including any nitty-gritty details (such as thread pool
+	 * details or the like).
 	 */
 	private JChannel constructChannel() throws Exception
 	{
 		// create a different channel depending on whether we are trying to use the WAN
 		// or local network infrastructure
 		JChannel channel = null;
-		boolean wanEnabled = System.getProperty("portico.wan.enabled","false").equals("true");
-		if( wanEnabled )
+		if( Configuration.isWanEnabled() )
 		{
 			logger.info( "WAN mode has been enabled" );
-			channel = new JChannel( "etc/jgroups-tunnel.xml" );
+			writeRelayConfiguration();
+			channel = new JChannel( "etc/jgroups-relay.xml" );
 		}
 		else
 		{
 			channel = new JChannel( "etc/jgroups-udp.xml" );
 		}
 
-
 		// if we're not using daemon threads, return without resetting the thread groups
-		if( JGroupsProperties.useDaemonThreads() == false )
+		if( Configuration.useDaemonThreads() == false )
 			return channel;
 
 		// we are using daemon threds, so let's set the channel up to do so
@@ -213,21 +206,95 @@ public class FederationChannel
 		channel.getProtocolStack().getTransport().setTimerThreadFactory( factory );
 
 		// set the thread pools on the transport
-		ThreadPoolExecutor regular = 
-			(ThreadPoolExecutor)channel.getProtocolStack().getTransport().getDefaultThreadPool();
+		ThreadPoolExecutor regular =
+		    (ThreadPoolExecutor)channel.getProtocolStack().getTransport().getDefaultThreadPool();
 		regular.setThreadFactory( new DefaultThreadFactory(threadGroup,"Regular",true) );
 
 		// do the same for the oob pool
-		ThreadPoolExecutor oob = 
-			(ThreadPoolExecutor)channel.getProtocolStack().getTransport().getOOBThreadPool();
+		ThreadPoolExecutor oob =
+		    (ThreadPoolExecutor)channel.getProtocolStack().getTransport().getOOBThreadPool();
 		oob.setThreadFactory( new DefaultThreadFactory(threadGroup,"OOB",true) );
 
 		return channel;
 	}
 
-	//////////////////////////////////////////////////////////////////////////////////////////
-	//////////////////////////////// Message Sending Methods /////////////////////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
+	/**
+	 * The RELAY2 configuration requires a bunch of information from us and will currently
+	 * only suck it in from an XML configuration file... (╯°□°）╯︵ ┻━┻)
+	 * 
+	 * This method will write an appropriate relay configuration file based on the given
+	 * RID information. It will be written into a place that our jgroups configuration will
+	 * find it.
+	 */
+	private void writeRelayConfiguration() throws Exception
+	{
+		// write the header
+		StringBuilder builder = new StringBuilder();
+		builder.append( "<RelayConfiguration xmlns=\"urn:jgroups:relay:1.0\"><sites>" );
+
+		// write an entry for each of the remotes listed in the RID file
+		int counter = 0;
+		String bridgeConfig = "etc/jgroups-tunnel.xml";
+		for( String remote : Configuration.getWanRemotes() )
+		{
+			builder.append( "<site name=\""+remote+"\" id=\""+counter+
+			                "\"><bridges><bridge config=\""+bridgeConfig+
+			                "\" name=\"backbone\"/></bridges></site>" );
+			counter++;
+		}
+
+		// write the tail
+		builder.append( "</sites></RelayConfiguration>" );
+
+		// write the file out
+		String tempfile = System.getProperty("java.io.tmpdir")+File.separator+"portico-relay.xml";
+		Files.write( Paths.get(tempfile),
+		             builder.toString().getBytes(),
+		             StandardOpenOption.CREATE,
+		             StandardOpenOption.WRITE,
+		             StandardOpenOption.TRUNCATE_EXISTING );
+	}
+
+	/**
+	 * Finds the channel co-ordinator and gets the manifest from them. If there is no
+	 * co-ordinator, step up and be one!
+	 */
+	private void findCoordinator() throws Exception
+	{
+		//////////////////////////////
+		// Ask for the Co-ordinator //
+		//////////////////////////////
+		// announce that we have joined
+		Message message = new Message();
+		message.putHeader( ControlHeader.HEADER, ControlHeader.findCoordinator() );
+		message.setFlag( Flag.DONT_BUNDLE );
+		message.setFlag( Flag.NO_FC );
+		message.setFlag( Flag.OOB );
+
+		// send the message out - because this is marked with the RSVP flag the send
+		// call will block until all other channel participants have received the
+		// message and acknowledged it
+		this.jchannel.send( message );
+		
+		// sleep
+		PorticoConstants.sleep( 2000 ); // FIXME replace with configurable
+		
+		// got mail?
+		if( manifest == null )
+		{
+			logger.info( "No co-ordinator found - appointing myself!" );
+			this.manifest = new Manifest( channelName, jchannel.getAddress() );
+			this.manifest.setCoordinator( jchannel.getAddress() );
+		}
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////// General Sending Methods ///////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////
+	public Manifest getManifest() { return manifest; }
+	public String getChannelName() { return this.channelName; }
+	public boolean isConnected() { return this.connected; }
+
 	/**
 	 * This method will send the provided message to all federates in the federation. If there
 	 * is a problem serializing or sending the message, a {@link JRTIinternalError} is thrown.
@@ -253,7 +320,7 @@ public class FederationChannel
 		if( logger.isTraceEnabled() )
 		{
 			logger.trace( "(outgoing) payload="+payload.getClass().getSimpleName()+", size="+
-			              data.length+", channel="+federationName );
+			              data.length+", channel="+channelName );
 		}
 		
 		try
@@ -262,34 +329,23 @@ public class FederationChannel
 		}
 		catch( Exception e )
 		{
-			throw new JRTIinternalError( "Problem sending message: channel="+federationName+
+			throw new JRTIinternalError( "Problem sending message: channel="+channelName+
 			                             ", error message="+e.getMessage(), e );
 		}
 	}
-
-	//////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////// Federation Management //////////////////////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
-	/**
-	 * Just because a JGroups channel exists doesn't mean that a federation has been created
-	 * inside it. To actually create a federation we have to issue a create order and provide
-	 * the base object model. We first check to make sure there isn't already an active
-	 * federation and if there isn't, we tell all the other channel members, blocking until
-	 * they acknowledge receipt.
-	 *   
-	 * @param fom The object model for the federation
-	 * @throws Exception If we don't get an acknowledgement from all other channel members in
-	 *                   time of there is already an active federation in place.
-	 */
+	
+	//////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////// Federation Lifecycle Methods ////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////
 	public void createFederation( ObjectModel fom ) throws Exception
 	{
-		logger.debug( "REQUEST createFederation: name=" + federationName );
+		logger.debug( "REQUEST createFederation: name=" + channelName );
 
 		// make sure we're not already connected to an active federation
-		if( manifest.isCreated() )
+		if( manifest.containsFederation() )
 		{
-			logger.error( "FAILURE createFederation: already exists, name="+federationName );
-			throw new JFederationExecutionAlreadyExists( "federation exists: "+federationName );
+			logger.error( "FAILURE createFederation: already exists, name="+channelName );
+			throw new JFederationExecutionAlreadyExists( "federation exists: "+channelName );
 		}
 		
 		// send out create federation call and get an ack from everyone
@@ -306,40 +362,29 @@ public class FederationChannel
 		// message and acknowledged it
 		this.jchannel.send( message );
 
-		logger.info( "SUCCESS createFederation: name=" + federationName );
+		logger.info( "SUCCESS createFederation: name=" + channelName );
 	}
-
-	/**
-	 * Attempt to join the active fedeation in the channel. We check that there is an active
-	 * federation to join and we're not already joined to it (nor is someone with our name).
-	 * 
-	 * @param federateName The name we want to join with
-	 * @param lrc The LRC we want messages to flow into on successful join
-	 * @throws Exception If there is no federation to join, we're already joined or someone
-	 *                   else is already joined with out name (unless the RID file has been
-	 *                   configured to not require unique names).
-	 */
+	
 	public String joinFederation( String federateName, LRC lrc ) throws Exception
 	{
-		logger.debug( "REQUEST joinFederation: federate="+federateName+", federation="+federationName );
+		logger.debug( "REQUEST joinFederation: federate="+federateName+", federation="+channelName );
 
 		// check to see if there is an active federation
-		if( manifest.isCreated() == false )
+		if( manifest.containsFederation() == false )
 		{
-			logger.info( "FAILURE joinFederation: federation doesn't exist, name="+federationName );
-			throw new JFederationExecutionDoesNotExist( "federation doesn't exist: "+federationName );
+			logger.info( "FAILURE joinFederation: federation doesn't exist, name="+channelName );
+			throw new JFederationExecutionDoesNotExist( "federation doesn't exist: "+channelName );
 		}
 
-		// check to see if there is a federate with our name already present
 		// check to see if someone already exists with the same name
-		// If we have been configured to allow non-unique names, check, but don't error
-		// on failure, rather, augment the name from "federateName" to "federateName (handle)"
+		// If we have been configured to allow non-unique names, check, but don't error,
+		// just augment the name from "federateName" to "federateName (handle)"
 		if( manifest.containsFederate(federateName) )
 		{
 			if( PorticoConstants.isUniqueFederateNamesRequired() )
 			{
 				logger.info( "FAILURE joinFederation: federate="+federateName+", federation="+
-				             federationName+": Federate name in use" );
+				             channelName+": Federate name in use" );
 				throw new JFederateAlreadyExecutionMember( "federate name in use: "+federateName );
 			}
 			else
@@ -350,12 +395,12 @@ public class FederationChannel
 		}
 
 		// Enable the auditor if we are configured to use it
-		if( JGroupsProperties.isAuditorEnabled() )
-			this.auditor.startAuditing( federationName, federateName, lrc );
+		if( Configuration.isAuditorEnabled() )
+			this.auditor.startAuditing( channelName, federateName, lrc );
 		
 		// link up the message receiver to the LRC we're joined to so that
 		// messages can start flowing right away
-		this.receiver.linkToLRC( lrc );
+		this.receiver.linkToLRC( lrc ); // FIXME make sure the receiver takes notice
 	
 		// send the notification to all other members and get an ack from everyone
 		Message message = new Message();
@@ -370,9 +415,9 @@ public class FederationChannel
 		this.jchannel.send( message );
 		
 		logger.info( "SUCCESS Joined federation with name="+federateName );
-		return federateName;
+		return federateName;		
 	}
-
+	
 	/**
 	 * Sends the resignation notification out with the appropriate header so that it is
 	 * detected by other channel members, allowing them to update their manifest appropriately.
@@ -383,7 +428,7 @@ public class FederationChannel
 		// get the federate name before we send and cause it to be removed from the manifest
 		String federateName = this.manifest.getLocalFederateName();
 		logger.debug( "REQUEST resignFederation: federate="+federateName+
-		              ", federation="+federationName );
+		              ", federation="+channelName );
 		
 		// send the notification out to all receivers and wait for acknowledgement from each
 		Message message = new Message();
@@ -398,35 +443,35 @@ public class FederationChannel
 		// all done, disconnect our incoming receiver
 		// we received the message sent above as well, so the receiver will update the
 		// manifest as it updates it for any federate resignation
-		logger.info( "SUCCESS Federate ["+federateName+"] resigned from ["+federationName+"]" );
+		logger.info( "SUCCESS Federate ["+federateName+"] resigned from ["+channelName+"]" );
 		this.receiver.unlink();
 		this.auditor.stopAuditing();
 	}
-
+	
 	/**
-	 * Validates that the federation is in a destroyable state (there is a federatoin active
-	 * but there are no joined federates) and then sends the destroy request to all other
-	 * connected members, blocking until they acknowledge it.
+	 * Validates that the federation is in a destroyable state (active federation but no
+	 * joined federates) and then sends the destroy request to all other connected members,
+	 * blocking until they acknowledge it.
 	 * 
 	 * @throws Exception If there is no federation active or there are federates still joined to
 	 *                   it, or if there is a problem flushing the channel before we send.
 	 */
 	public void destroyFederation() throws Exception
 	{
-		logger.debug( "REQUEST destroyFederation: name=" + federationName );
+		logger.debug( "REQUEST destroyFederation: name=" + channelName );
 		
 		// check to make sure there is a federation to destroy
-		if( manifest.isCreated() == false )
+		if( manifest.containsFederation() == false )
 		{
-			logger.error( "FAILURE destoryFederation ["+federationName+"]: doesn't exist" );
-			throw new JFederationExecutionDoesNotExist( "doesn't exist: "+federationName );
+			logger.error( "FAILURE destoryFederation ["+channelName+"]: doesn't exist" );
+			throw new JFederationExecutionDoesNotExist( "doesn't exist: "+channelName );
 		}
 
 		// check to make sure there are no federates still joined
 		if( manifest.getFederateHandles().size() > 0 )
 		{
 			String stillJoined = manifest.getFederateHandles().toString();
-			logger.info( "FAILURE destroyFederation ["+federationName+"]: federates still joined "+
+			logger.info( "FAILURE destroyFederation ["+channelName+"]: federates still joined "+
 			             stillJoined );
 			throw new JFederatesCurrentlyJoined( "federates still joined: "+stillJoined );
 		}
@@ -434,7 +479,7 @@ public class FederationChannel
 		// send the notification out to all receivers and wait for acknowledgement from each
 		Message message = new Message();
 		message.putHeader( ControlHeader.HEADER, ControlHeader.newDestroyHeader() );
-		message.setBuffer( federationName.getBytes() );
+		message.setBuffer( channelName.getBytes() );
 		message.setFlag( Flag.DONT_BUNDLE );
 		message.setFlag( Flag.NO_FC );
 		message.setFlag( Flag.OOB );
@@ -444,11 +489,10 @@ public class FederationChannel
 		// we don't need to update the manifest directly here, that will be done by
 		// out message listener, which will have received the message we sent above
 
-		logger.info( "SUCCESS destroyFederation: name=" + federationName );
+		logger.info( "SUCCESS destroyFederation: name=" + channelName );
 	}
-
+	
 	//----------------------------------------------------------
 	//                     STATIC METHODS
 	//----------------------------------------------------------
-
 }

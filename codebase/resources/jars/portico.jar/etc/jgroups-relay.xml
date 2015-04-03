@@ -100,6 +100,14 @@
     <!-- FRAG2 breaks up large messages into smaller sizes so they can be send in chunks -->
     <FRAG2 frag_size="${portico.jgroups.frag.size:60K}"/>
 
+    <!-- Relay connection to gossip router for site-to-site -->
+    <relay.RELAY2 site="${portico.wan.site:default}"
+                  config="${java.io.tmpdir}/portico-relay.xml"
+                  relay_multicasts="true"/>
+
+    <!-- Failover support for Relay -->
+    <FORWARD_TO_COORD/>
+
     <!-- FLUSH forces all group members to send all pending messages prior to
          some event such as the joining of a new member -->
     <pbcast.FLUSH retry_timeout="3000"/>

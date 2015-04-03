@@ -258,20 +258,15 @@
 # portico.jgroups.auditor.filter.message   = 
 # portico.jgroups.auditor.filter.fomtype   = 
 
-
-# =========================================
-# 4. Undocumented Settings
-# =========================================
-# This section is a catch-all of settings we use for internal work, and infrequently.
-# Their specific usecase and function is undocumented as they are not intended for general use.
-# portico.container.loglevel = OFF
-# portico.jgroups.loglevel = OFF
-# portico.jgroups.timeout = 1000
-
-
 # =========================================
 # 5. WAN Connection Options
 # =========================================
+#
+#       *** WARNING ***
+#       This configuration will not work out of the box with defaults.
+#       If you enable WAN mode, you must provide a configuration for the
+#       sites and peers.
+#
 
 # (5.1) WAN Mode Enable/Disable
 #       If true, WAN mode will be enabled. In this mode, Portico will not use its
@@ -295,4 +290,24 @@
 #       Default: 127.0.0.1[12001]
 #
 # portico.wan.router = 127.0.0.1[12001]
+
+# (5.3) Local Site Name
+#       To perform routing correctly, each independent site needs a name, and
+#       we need to know the names of all the other sites in the federation.
+#
+#       *** WARNING ***
+#       This will not work out of the box - you must provide this configuration
+#
+# portico.wan.site = nyc
+# portico.wan.remotes = lon,sfo
+
+
+# =========================================
+# A51. Undocumented Settings
+# =========================================
+# This section is a catch-all of settings we use for internal work, and infrequently.
+# Their specific usecase and function is undocumented as they are not intended for general use.
+# portico.container.loglevel = OFF
+# portico.jgroups.loglevel = OFF
+# portico.jgroups.timeout = 1000
 

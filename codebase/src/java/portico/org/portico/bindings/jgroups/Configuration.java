@@ -1,5 +1,5 @@
 /*
- *   Copyright 2012 The Portico Project
+ *   Copyright 2015 The Portico Project
  *
  *   This file is part of portico.
  *
@@ -15,6 +15,7 @@
 package org.portico.bindings.jgroups;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.StringTokenizer;
 
@@ -24,7 +25,7 @@ import org.portico.lrc.compat.JConfigurationException;
  * All configuration information is stored in system properties as keys. This class
  * provides statics that can be used to identify the specific keys.
  */
-public class JGroupsProperties
+public class Configuration
 {
 	//----------------------------------------------------------
 	//                    STATIC VARIABLES
@@ -46,17 +47,17 @@ public class JGroupsProperties
 
 	/** The period of time to wait for a response when joining a channel before assuming
 	    that there is no existing co-ordinator and appointing ourselves to that lofty title */
-	public static String PROP_JGROUPS_GMS_TIMEOUT = "portico.jgroups.gms.jointimeout";
+	public static final String PROP_JGROUPS_GMS_TIMEOUT = "portico.jgroups.gms.jointimeout";
 
 	///// auditor settings
 	/** Whether or not the auditor is enabled */
-	public static String PROP_JGROUPS_AUDITOR_ENABLED = "portico.jgroups.auditor.enabled";
-	public static String PROP_JGROUPS_AUDITOR_DETAILS = "portico.jgroups.auditor.details";
+	public static final String PROP_JGROUPS_AUDITOR_ENABLED = "portico.jgroups.auditor.enabled";
+	public static final String PROP_JGROUPS_AUDITOR_DETAILS = "portico.jgroups.auditor.details";
 
 	/** Auditor filtering settings */
-	public static String PROP_JGROUPS_AUDITOR_FILTER_DIR = "portico.jgroups.auditor.filter.direction";
-	public static String PROP_JGROUPS_AUDITOR_FILTER_MSG = "portico.jgroups.auditor.filter.message";
-	public static String PROP_JGROUPS_AUDITOR_FILTER_FOM = "portico.jgroups.auditor.filter.fomtype";
+	public static final String PROP_JGROUPS_AUDITOR_FILTER_DIR = "portico.jgroups.auditor.filter.direction";
+	public static final String PROP_JGROUPS_AUDITOR_FILTER_MSG = "portico.jgroups.auditor.filter.message";
+	public static final String PROP_JGROUPS_AUDITOR_FILTER_FOM = "portico.jgroups.auditor.filter.fomtype";
 
 	///// jgroups properties /////////////////////////////////////////////////////////////////
 	/** The amount of time (in milliseconds) to wait for a response to a request, defaults to 1000,
@@ -67,7 +68,9 @@ public class JGroupsProperties
 	
 	///// wan properties /////////////////////////////////////////////////////////////////////
 	public static final String PROP_JGROUPS_WAN_ENABLED = "portico.wan.enabled";
-	
+	public static final String PROP_JGROUPS_WAN_SITE    = "portico.wan.site";
+	public static final String PROP_JGROUPS_WAN_REMOTES = "portico.wan.remotes";
+
 	//----------------------------------------------------------
 	//                   INSTANCE VARIABLES
 	//----------------------------------------------------------
@@ -83,6 +86,14 @@ public class JGroupsProperties
 	//----------------------------------------------------------
 	//                     STATIC METHODS
 	//----------------------------------------------------------
+	/**
+	 * @return An unvalidated log level from the RID return as a String. Returns "OFF" if not set.
+	 */
+	public static final String getLogLevel()
+	{
+		return System.getProperty( PROP_JGROUPS_LOGLEVEL, "OFF" );
+	}
+	
 	/**
 	 * @return The jgroups join timeout to use in milliseconds. Defaults to 5000.
 	 */
@@ -176,6 +187,31 @@ public class JGroupsProperties
 		String value = System.getProperty( PROP_JGROUPS_AUDITOR_FILTER_FOM,"all");
 		return explode( value, "," );
 	}
+
+	/**
+	 * @return True if the wan mode has been enabled in the RID, false otherwise
+	 */
+	public static boolean isWanEnabled()
+	{
+		return Boolean.valueOf( System.getProperty(PROP_JGROUPS_WAN_ENABLED,"false") ); 
+	}
+
+	/**
+	 * @return The list of remote sites found in the RID WAN configuration. Returns an
+	 *         empty list if the property is missing or empty.
+	 *         
+	 *         The value of the local site will also be added and to ensure consistency
+	 *         the list will be sorted alphabetically before returning.
+	 */
+	public static List<String> getWanRemotes()
+	{
+		String site = System.getProperty( PROP_JGROUPS_WAN_SITE, "default" );
+		String value = System.getProperty( PROP_JGROUPS_WAN_REMOTES, "" );
+		List<String> remotes = explode( value, "," );
+		remotes.add( 0, site );
+		Collections.sort( remotes );
+		return remotes;
+	}
 	
 	private static List<String> explode( String string, String delimiter )
 	{
@@ -192,5 +228,6 @@ public class JGroupsProperties
 		
 		return list;
 	}
+
 	
 }
