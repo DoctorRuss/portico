@@ -12,13 +12,6 @@
           num_initial_members="1"
           break_on_coord_rsp="true"/>
 
-    <!-- When federations go rouge, merge them back together. This will really
-         get hairy if they've got differnet FOMs, as merging state can cause all
-         sorts of pain I don't want to think about, so we just don't do it. I'd
-         expect to see all sorts of ObjectClassNotKnown errors and the like from
-         diverging FOMs in this case, but it's an edge case, so who cares, right? -->
-    <MERGE3 max_interval="30000" min_interval="10000"/>
-
     <!-- Detect when a federate has gone tits-up with a simple heartbeat algorithm.
          We can turn on countMessages which will treat all messages received from a
          federate as a heartbeat, but this add overhead and apparently isn't
@@ -31,9 +24,6 @@
          we need to finally verify this. VERIFY_SUSPECT will ping the suspect,
          waiting at most timeout millis before giving up and calling it dead -->
     <VERIFY_SUSPECT timeout="1500"/>
-
-    <!-- Used internally to block threads during state transfer -->
-    <BARRIER/>
 
     <!-- NAKACK2 provides the reliable, ordered properties to our comms -->
     <pbcast.NAKACK2 xmit_interval="1000"
@@ -75,7 +65,6 @@
     <!-- Flow control prevents any single sender overwhelming slower receivers
          with messages which could cause them to be dropped -->
     <UFC max_credits="4M" min_threshold="0.4"/>
-    <MFC max_credits="4M" min_threshold="0.4"/>
 
     <!-- FRAG2 breaks up large messages into smaller sizes so they can be send in chunks -->
     <FRAG2 frag_size="60k"/>
