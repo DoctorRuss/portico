@@ -186,35 +186,35 @@ public class ChannelListener implements RequestHandler, MessageListener, Members
 			switch( header.getMessageType() )
 			{
 				case ControlHeader.FIND_COORDINATOR:
-					logger.fatal( "(TP) findCoordinator("+message.getSrc()+")" );
+					logger.debug( "(GMS) findCoordinator("+message.getSrc()+")" );
 					incomingFindCoordinator( message );
 					break;
 				case ControlHeader.SET_MANIFEST:
-					logger.fatal( "(TP) setManifest("+message.getSrc()+")" );
+					logger.debug( "(GMS) setManifest("+message.getSrc()+")" );
 					incomingSetManifest( message );
 					break;
 				case ControlHeader.CREATE_FEDERATION:
-					logger.fatal( "(TP) createFederation("+message.getSrc()+")" );
+					logger.debug( "(GMS) createFederation("+message.getSrc()+")" );
 					incomingCreateFederation( message );
 					break;
 				case ControlHeader.JOIN_FEDERATION:
-					logger.fatal( "(TP) joinFederation("+message.getSrc()+")" );
+					logger.debug( "(GMS) joinFederation("+message.getSrc()+")" );
 					incomingJoinFederation( message );
 					break;
 				case ControlHeader.RESIGN_FEDERATION:
-					logger.fatal( "(TP) resignFederation("+message.getSrc()+")" );
+					logger.debug( "(GMS) resignFederation("+message.getSrc()+")" );
 					incomingResignFederation( message );
 					break;
 				case ControlHeader.DESTROY_FEDERATION:
-					logger.fatal( "(TP) destroyFederation("+message.getSrc()+")" );
+					logger.debug( "(GMS) destroyFederation("+message.getSrc()+")" );
 					incomingDestroyFederation( message );
 					break;
 				case ControlHeader.GOODBYE:
-					logger.fatal( "(TP) goodbye("+message.getSrc()+")" );
+					logger.debug( "(GMS) goodbye("+message.getSrc()+")" );
 					incomingGoodbye( message );
 					break;
 				default:
-					logger.error( "Unknown control message [type="+header.getMessageType()+"]. Ignore." );
+					logger.warn( "Unknown control message [type="+header.getMessageType()+"]. Ignore." );
 			}
 		}
 	}
