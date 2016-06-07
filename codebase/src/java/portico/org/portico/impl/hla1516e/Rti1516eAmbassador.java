@@ -2112,9 +2112,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double doubleTime = PorticoConstants.NULL_TIME;
-		if( theTime != null )
-			doubleTime = DoubleTime.fromTime( theTime );
+		double doubleTime = this.helper.getTime( theTime );
 
 		HashMap<Integer,byte[]> map = HLA1516eAttributeHandleValueMap.toJavaMap( theAttributes );
 		int oHandle = HLA1516eHandle.fromHandle( theObject );
@@ -2267,9 +2265,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double doubleTime = PorticoConstants.NULL_TIME;
-		if( theTime != null )
-			doubleTime = DoubleTime.fromTime( theTime );
+		double doubleTime = this.helper.getTime( theTime );
 		HashMap<Integer,byte[]> map = HLA1516eParameterHandleValueMap.toJavaMap( theParameters );
 		int iHandle = HLA1516eHandle.fromHandle( theInteraction );
 
@@ -2411,9 +2407,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = PorticoConstants.NULL_TIME;
-		if( theTime != null )
-			time = DoubleTime.fromTime( theTime );
+		double time = this.helper.getTime( theTime );
 		int oHandle = HLA1516eHandle.fromHandle( objectHandle );
 		
 		///////////////////////////////////////////////////////
@@ -3717,7 +3711,9 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = DoubleTime.fromTime( theTime ); // also checks for null
+		if( theTime == null )
+			throw new InvalidLogicalTime( "Expecting LogicalTime, found: null" );
+		double time = this.helper.getTime( theTime );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -3800,7 +3796,9 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = DoubleTime.fromTime( theTime ); // also checks for null
+		if( theTime == null )
+			throw new InvalidLogicalTime( "Expecting LogicalTime, found: null" );
+		double time = this.helper.getTime( theTime );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -3882,7 +3880,9 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = DoubleTime.fromTime( theTime );
+		if( theTime == null )
+			throw new InvalidLogicalTime( "Expecting LogicalTime, found: null" );
+		double time = this.helper.getTime( theTime );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -3964,7 +3964,9 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = DoubleTime.fromTime( theTime );
+		if( theTime == null )
+			throw new InvalidLogicalTime( "Expecting LogicalTime, found: null" );
+		double time = this.helper.getTime( theTime );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -4046,7 +4048,9 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = DoubleTime.fromTime( theTime );
+		if( theTime == null )
+			throw new InvalidLogicalTime( "Expecting LogicalTime, found: null" );
+		double time = this.helper.getTime( theTime );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -4283,11 +4287,12 @@ public class Rti1516eAmbassador implements RTIambassador
 		       NotConnected,
 		       RTIinternalError
 	{
+		helper.checkConnected();
 		helper.checkJoined();
 		helper.checkSave();
 		helper.checkRestore();
 		
-		return new DoubleTime( helper.getState().getCurrentTime() );
+		return helper.getCurrentLogicalTime();
 	}
 
 	// 8.18
@@ -4298,11 +4303,12 @@ public class Rti1516eAmbassador implements RTIambassador
 		       NotConnected,
 		       RTIinternalError
 	{
+		helper.checkConnected();
 		helper.checkJoined();
 		helper.checkSave();
 		helper.checkRestore();
 		
-		DoubleTime time = new DoubleTime( helper.getState().getCurrentTime() );
+		LogicalTime time = helper.getCurrentLogicalTime();
 		return new TimeQueryReturn( true, time );
 	}
 
@@ -5495,7 +5501,8 @@ public class Rti1516eAmbassador implements RTIambassador
 		return "Portico (ieee-1516e)";
 	}
 
-	// default to DoubleTimeFactory, but return the value set in createFederationExecution if available
+	// default to DoubleTimeFactory, but return the value set in
+	// createFederationExecution if available
 	public LogicalTimeFactory getTimeFactory() throws FederateNotExecutionMember, NotConnected
 	{
 		this.helper.checkConnected();

@@ -16,6 +16,7 @@ package org.portico.impl.hla1516e;
 
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.FederateAmbassador;
+import hla.rti1516e.LogicalTime;
 import hla.rti1516e.LogicalTimeFactory;
 import hla.rti1516e.LogicalTimeFactoryFactory;
 import hla.rti1516e.LogicalTimeInterval;
@@ -36,12 +37,15 @@ import hla.rti1516e.exceptions.TimeRegulationIsNotEnabled;
 import org.apache.log4j.Logger;
 import org.portico.impl.HLAVersion;
 import org.portico.impl.ISpecHelper;
+import org.portico.impl.hla1516e.types.time.DoubleTime;
 import org.portico.impl.hla1516e.types.time.DoubleTimeFactory;
 import org.portico.impl.hla1516e.types.time.DoubleTimeInterval;
+import org.portico.impl.hla1516e.types.time.LongTime;
 import org.portico.impl.hla1516e.types.time.LongTimeFactory;
 import org.portico.impl.hla1516e.types.time.LongTimeInterval;
 import org.portico.lrc.LRC;
 import org.portico.lrc.LRCState;
+import org.portico.lrc.PorticoConstants;
 import org.portico.lrc.compat.JConcurrentAccessAttempted;
 import org.portico.lrc.compat.JConfigurationException;
 import org.portico.lrc.compat.JEnableTimeConstrainedPending;
@@ -437,6 +441,56 @@ public class Impl1516eHelper implements ISpecHelper
 		else if (timeFactory instanceof LongTimeFactory)
 		{
 			return ( (LongTimeFactory) timeFactory).makeInterval( (long)lookahead );
+		}
+		else
+		{
+			throw new RTIinternalError( "Unexpected time factory" );
+		}
+	}
+
+	public double getTime( LogicalTime theTime ) throws RTIinternalError, InvalidLogicalTime
+	{
+		if( theTime == null )
+			return PorticoConstants.NULL_TIME;
+
+		if (timeFactory instanceof DoubleTimeFactory)
+		{
+			if ( theTime instanceof DoubleTime)
+			{
+				return ((DoubleTime)theTime).getValue();
+			}
+			else
+			{
+				throw new InvalidLogicalTime( "Expecting HLAfloat64Time, found: " + theTime.getClass() );
+			}
+		}
+		else if (timeFactory instanceof LongTimeFactory)
+		{
+			if ( theTime instanceof LongTime )
+			{
+				return ((LongTime)theTime).getValue();
+			}
+			else
+			{
+				throw new InvalidLogicalTime( "Expecting HLAinteger64Time, found: " + theTime.getClass() );
+			}
+		}
+		else
+		{
+			throw new RTIinternalError( "Unexpected time factory" );
+		}
+	}
+
+	public LogicalTime getCurrentLogicalTime() throws RTIinternalError
+	{
+		double currentTime = getState().getCurrentTime();
+		if (timeFactory instanceof DoubleTimeFactory)
+		{
+			return ( (DoubleTimeFactory) timeFactory).makeTime( currentTime );
+		}
+		else if (timeFactory instanceof LongTimeFactory)
+		{
+			return ( (LongTimeFactory) timeFactory).makeTime( (long)currentTime );
 		}
 		else
 		{
