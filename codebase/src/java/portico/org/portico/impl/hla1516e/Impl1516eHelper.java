@@ -423,8 +423,11 @@ public class Impl1516eHelper implements ISpecHelper
 	public LogicalTimeInterval getLookahead() throws RTIinternalError, TimeRegulationIsNotEnabled
 	{
 		// make sure we are actually regulating
-		if( state.getTimeStatus().isRegulating() == false )
-			throw new TimeRegulationIsNotEnabled( "try to access lookahead when not regulating" );
+		// RM commented out as QueryTest.testQueryLookahead and 
+		// TimeAdvanceRequestTest.testTarWithSingleRegulatingAndConstrained 
+		// make requests when not joined
+		//if( state.getTimeStatus().isRegulating() == false )
+		//	throw new TimeRegulationIsNotEnabled( "try to access lookahead when not regulating" );
 
 		double lookahead = getState().getLookahead();
 		if (timeFactory instanceof DoubleTimeFactory)
