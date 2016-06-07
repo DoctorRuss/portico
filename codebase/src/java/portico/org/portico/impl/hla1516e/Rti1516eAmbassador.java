@@ -46,8 +46,6 @@ import org.portico.impl.hla1516e.types.HLA1516eRegionHandleSetFactory;
 import org.portico.impl.hla1516e.types.HLA1516eResignAction;
 import org.portico.impl.hla1516e.types.HLA1516eTransportationTypeHandleFactory;
 import org.portico.impl.hla1516e.types.time.DoubleTime;
-import org.portico.impl.hla1516e.types.time.DoubleTimeFactory;
-import org.portico.impl.hla1516e.types.time.DoubleTimeInterval;
 import org.portico.lrc.PorticoConstants;
 import org.portico.lrc.compat.JAsynchronousDeliveryAlreadyDisabled;
 import org.portico.lrc.compat.JAsynchronousDeliveryAlreadyEnabled;
@@ -431,17 +429,7 @@ public class Rti1516eAmbassador implements RTIambassador
 	           NotConnected,
 	           RTIinternalError
 	{
-		// validate the time type, ensuring it is one of the standard ones
-		if( timeName != null && (timeName.trim().equals("") == false) )
-		{
-			timeName = timeName.trim();
-			if( timeName.equals("HLAfloat64Time") == false &&
-				timeName.equals("HLAinteger64Time") == false )
-			{
-				throw new CouldNotCreateLogicalTimeFactory( "Invalid time implementation: Must be "+
-				                                            "\"HLAfloat64Time\" or \"HLAinteger64Time\"" );
-			}
-		}
+		validateTimeName( timeName );
 
 		// validate the time type and hand off to the (String,URL[]) overload
 		createFederationExecution( federationName, fomModules );
@@ -463,17 +451,7 @@ public class Rti1516eAmbassador implements RTIambassador
 	           NotConnected,
 	           RTIinternalError
 	{
-		// validate the time type, ensuring it is one of the standard ones
-		if( timeName != null )
-		{
-			timeName = timeName.trim();
-			if( timeName.equals("HLAfloat64Time") == false &&
-				timeName.equals("HLAinteger64Time") == false )
-			{
-				throw new CouldNotCreateLogicalTimeFactory( "Invalid time implementation: Must be "+
-				                                            "\"HLAfloat64Time\" or \"HLAinteger64Time\"" );
-			}
-		}
+		validateTimeName( timeName );
 
 		// validate the time parameter and hand off to the (String,URL[],URL) overload
 		createFederationExecution( federationName, fomModules, mimModule );
@@ -3480,7 +3458,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double la = DoubleTimeInterval.fromLookahead( theLookahead );
+		double la = this.helper.convertLookahead( theLookahead );
 		
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -4342,15 +4320,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		////////////////////////////////////////////////////////
 		// 0. check that we have the right logical time class //
 		////////////////////////////////////////////////////////
-		double time = 0.0;
-		try
-		{
-			time = DoubleTimeInterval.fromInterval( theLookahead );
-		}
-		catch( Exception e )
-		{
-			throw new InvalidLookahead( "Error converting lookahead: " + e.getMessage(), e );
-		}
+		double time = this.helper.convertLookahead( theLookahead );
 
 		///////////////////////////////////////////////////////
 		// 1. create the message and pass it to the LRC sink //
@@ -4416,11 +4386,12 @@ public class Rti1516eAmbassador implements RTIambassador
 		       NotConnected,
 		       RTIinternalError
 	{
+		helper.checkConnected();
 		helper.checkJoined();
 		helper.checkSave();
 		helper.checkRestore();
 		
-		return new DoubleTimeInterval( helper.getState().getLookahead() );
+		return helper.getLookahead();
 	}
 
 	// 8.21
@@ -5524,9 +5495,12 @@ public class Rti1516eAmbassador implements RTIambassador
 		return "Portico (ieee-1516e)";
 	}
 
+	// default to DoubleTimeFactory, but return the value set in createFederationExecution if available
 	public LogicalTimeFactory getTimeFactory() throws FederateNotExecutionMember, NotConnected
 	{
-		return new DoubleTimeFactory();
+		this.helper.checkConnected();
+		this.helper.checkJoined();
+		return this.getTimeFactory();
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////
@@ -5605,6 +5579,23 @@ public class Rti1516eAmbassador implements RTIambassador
 		logger.warn( "The IEEE 1516e interface doesn't yet support " + methodName );
 		if( PorticoConstants.shouldThrowExceptionForUnsupportedCall() )
 			throw new RTIinternalError( "The IEEE 1516e interface doesn't yet support "+methodName );
+	}
+
+	private void validateTimeName( String timeName ) throws CouldNotCreateLogicalTimeFactory
+	{
+		// validate the time type, ensuring it is one of the standard ones
+		if( timeName != null )
+		{
+			timeName = timeName.trim();
+			if( timeName.equals("HLAfloat64Time") == false &&
+				timeName.equals("HLAinteger64Time") == false )
+			{
+				throw new CouldNotCreateLogicalTimeFactory( "Invalid time implementation: Must be "+
+				                                            "\"HLAfloat64Time\" or \"HLAinteger64Time\"" );
+			}
+		}
+
+		this.helper.setTimeFactory( timeName );
 	}
 
 	//----------------------------------------------------------

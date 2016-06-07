@@ -16,10 +16,14 @@ package org.portico.impl.hla1516e;
 
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.FederateAmbassador;
+import hla.rti1516e.LogicalTimeFactory;
+import hla.rti1516e.LogicalTimeFactoryFactory;
+import hla.rti1516e.LogicalTimeInterval;
 import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
 import hla.rti1516e.exceptions.FederateNotExecutionMember;
 import hla.rti1516e.exceptions.InTimeAdvancingState;
 import hla.rti1516e.exceptions.InvalidLogicalTime;
+import hla.rti1516e.exceptions.InvalidLookahead;
 import hla.rti1516e.exceptions.NotConnected;
 import hla.rti1516e.exceptions.RTIinternalError;
 import hla.rti1516e.exceptions.RequestForTimeConstrainedPending;
@@ -27,10 +31,15 @@ import hla.rti1516e.exceptions.RequestForTimeRegulationPending;
 import hla.rti1516e.exceptions.RestoreInProgress;
 import hla.rti1516e.exceptions.SaveInProgress;
 import hla.rti1516e.exceptions.SynchronizationPointLabelNotAnnounced;
+import hla.rti1516e.exceptions.TimeRegulationIsNotEnabled;
 
 import org.apache.log4j.Logger;
 import org.portico.impl.HLAVersion;
 import org.portico.impl.ISpecHelper;
+import org.portico.impl.hla1516e.types.time.DoubleTimeFactory;
+import org.portico.impl.hla1516e.types.time.DoubleTimeInterval;
+import org.portico.impl.hla1516e.types.time.LongTimeFactory;
+import org.portico.impl.hla1516e.types.time.LongTimeInterval;
 import org.portico.lrc.LRC;
 import org.portico.lrc.LRCState;
 import org.portico.lrc.compat.JConcurrentAccessAttempted;
@@ -71,6 +80,7 @@ public class Impl1516eHelper implements ISpecHelper
 	private CallbackModel callbackModel;
 	
 	private FederateAmbassador fedamb;
+	private LogicalTimeFactory timeFactory;
 	//----------------------------------------------------------
 	//                      CONSTRUCTORS
 	//----------------------------------------------------------
@@ -82,6 +92,7 @@ public class Impl1516eHelper implements ISpecHelper
 			this.lrc = new LRC( this );
 			this.state = this.lrc.getState();
 			this.callbackModel = CallbackModel.HLA_EVOKED;
+			this.timeFactory = LogicalTimeFactoryFactory.getLogicalTimeFactory( "" );
 		}
 		catch( JConfigurationException jce )
 		{
@@ -143,6 +154,16 @@ public class Impl1516eHelper implements ISpecHelper
 	public ObjectModel getFOM()
 	{
 		return this.state.getFOM();
+	}
+
+	public LogicalTimeFactory getTimeFactory()
+	{
+		return this.timeFactory;
+	}
+
+	public void setTimeFactory( String timeName )
+	{
+		this.timeFactory = LogicalTimeFactoryFactory.getLogicalTimeFactory( timeName );
 	}
 	
 	/**
@@ -364,6 +385,60 @@ public class Impl1516eHelper implements ISpecHelper
 	protected void reinitializeLrc()
 	{
 		this.lrc.reinitialize();
+	}
+
+	public double convertLookahead( LogicalTimeInterval theLookahead ) throws InvalidLookahead, RTIinternalError
+	{
+		if( theLookahead == null )
+			throw new InvalidLookahead( "Expecting LogicalTimeInterval, found: null" );
+
+		if (timeFactory instanceof DoubleTimeFactory)
+		{
+			if ( theLookahead instanceof DoubleTimeInterval )
+			{
+				return ((DoubleTimeInterval)theLookahead).getValue();
+			}
+			else
+			{
+				throw new InvalidLookahead( "Expecting HLAfloat64Interval, found: " + theLookahead.getClass() );
+			}
+		}
+		else if (timeFactory instanceof LongTimeFactory)
+		{
+			if ( theLookahead instanceof LongTimeInterval )
+			{
+				return ((LongTimeInterval)theLookahead).getValue();
+			}
+			else
+			{
+				throw new InvalidLookahead( "Expecting HLAinteger64Interval, found: " + theLookahead.getClass() );
+			}
+		}
+		else
+		{
+			throw new RTIinternalError( "Unexpected time factory" );
+		}
+	}
+
+	public LogicalTimeInterval getLookahead() throws RTIinternalError, TimeRegulationIsNotEnabled
+	{
+		// make sure we are actually regulating
+		if( state.getTimeStatus().isRegulating() == false )
+			throw new TimeRegulationIsNotEnabled( "try to access lookahead when not regulating" );
+
+		double lookahead = getState().getLookahead();
+		if (timeFactory instanceof DoubleTimeFactory)
+		{
+			return ( (DoubleTimeFactory) timeFactory).makeInterval( lookahead );
+		}
+		else if (timeFactory instanceof LongTimeFactory)
+		{
+			return ( (LongTimeFactory) timeFactory).makeInterval( (long)lookahead );
+		}
+		else
+		{
+			throw new RTIinternalError( "Unexpected time factory" );
+		}
 	}
 
 	//----------------------------------------------------------
