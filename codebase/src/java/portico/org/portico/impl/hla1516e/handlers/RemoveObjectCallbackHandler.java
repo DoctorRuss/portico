@@ -14,11 +14,11 @@
  */
 package org.portico.impl.hla1516e.handlers;
 
+import hla.rti1516e.LogicalTime;
 import hla.rti1516e.OrderType;
 
 import java.util.Map;
 
-import org.portico.impl.hla1516e.types.time.DoubleTime;
 import org.portico.impl.hla1516e.types.HLA1516eHandle;
 import org.portico.lrc.services.object.msg.DeleteObject;
 import org.portico.utils.messaging.MessageContext;
@@ -71,11 +71,12 @@ public class RemoveObjectCallbackHandler extends HLA1516eCallbackHandler
 				logger.trace( "CALLBACK removeObjectInstance(object="+objectHandle+
 				              ",time="+timestamp+") (TSO)" );
 			}
-			
+
+			LogicalTime time = helper.getLogicalTime( timestamp );
 			fedamb().removeObjectInstance( new HLA1516eHandle(objectHandle),
 			                               request.getTag(),           // tag
 			                               OrderType.TIMESTAMP,        // sent order
-			                               new DoubleTime(timestamp),  // time
+			                               time,                       // time
 			                               OrderType.TIMESTAMP,        // received order
 			                               supplement );               // supplemental remove info
 		}

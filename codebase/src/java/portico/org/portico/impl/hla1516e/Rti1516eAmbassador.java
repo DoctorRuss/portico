@@ -45,7 +45,6 @@ import org.portico.impl.hla1516e.types.HLA1516eParameterHandleValueMapFactory;
 import org.portico.impl.hla1516e.types.HLA1516eRegionHandleSetFactory;
 import org.portico.impl.hla1516e.types.HLA1516eResignAction;
 import org.portico.impl.hla1516e.types.HLA1516eTransportationTypeHandleFactory;
-import org.portico.impl.hla1516e.types.time.DoubleTime;
 import org.portico.lrc.PorticoConstants;
 import org.portico.lrc.compat.JAsynchronousDeliveryAlreadyDisabled;
 import org.portico.lrc.compat.JAsynchronousDeliveryAlreadyEnabled;
@@ -4247,7 +4246,7 @@ public class Rti1516eAmbassador implements RTIambassador
 		if( response.isError() == false )
 		{
 			// request was fine
-			DoubleTime time = new DoubleTime( (Integer)response.getResult() );
+			LogicalTime time = helper.getLogicalTime( (Integer)response.getResult() );
 			return new TimeQueryReturn( true, time );
 		}
 		else

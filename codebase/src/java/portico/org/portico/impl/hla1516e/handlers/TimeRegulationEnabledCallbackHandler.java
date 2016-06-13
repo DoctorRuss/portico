@@ -16,10 +16,11 @@ package org.portico.impl.hla1516e.handlers;
 
 import java.util.Map;
 
-import org.portico.impl.hla1516e.types.time.DoubleTime;
 import org.portico.lrc.services.time.msg.EnableTimeRegulation;
 import org.portico.utils.messaging.MessageContext;
 import org.portico.utils.messaging.MessageHandler;
+
+import hla.rti1516e.LogicalTime;
 
 @MessageHandler(modules="lrc1516e-callback",
                 keywords="lrc1516e",
@@ -50,7 +51,7 @@ public class TimeRegulationEnabledCallbackHandler extends HLA1516eCallbackHandle
 	
 	public void process( MessageContext context ) throws Exception
 	{
-		DoubleTime currentTime = new DoubleTime( lrcState.getCurrentTime() );
+		LogicalTime currentTime = helper.getCurrentLogicalTime();
 		logger.trace( "CALLBACK timeRegulationEnabled(time="+currentTime+")" );
 		fedamb().timeRegulationEnabled( currentTime );
 		context.success();

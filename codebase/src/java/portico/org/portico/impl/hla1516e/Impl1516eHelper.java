@@ -483,14 +483,18 @@ public class Impl1516eHelper implements ISpecHelper
 
 	public LogicalTime getCurrentLogicalTime() throws RTIinternalError
 	{
-		double currentTime = getState().getCurrentTime();
+		return getLogicalTime( getState().getCurrentTime() );
+	}
+
+	public LogicalTime getLogicalTime( double time ) throws RTIinternalError
+	{
 		if (timeFactory instanceof DoubleTimeFactory)
 		{
-			return ( (DoubleTimeFactory) timeFactory).makeTime( currentTime );
+			return ( (DoubleTimeFactory) timeFactory).makeTime( time );
 		}
 		else if (timeFactory instanceof LongTimeFactory)
 		{
-			return ( (LongTimeFactory) timeFactory).makeTime( (long)currentTime );
+			return ( (LongTimeFactory) timeFactory).makeTime( (long)time );
 		}
 		else
 		{

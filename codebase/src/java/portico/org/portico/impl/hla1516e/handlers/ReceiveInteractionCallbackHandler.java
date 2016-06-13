@@ -14,6 +14,7 @@
  */
 package org.portico.impl.hla1516e.handlers;
 
+import hla.rti1516e.LogicalTime;
 import hla.rti1516e.OrderType;
 
 import java.util.HashMap;
@@ -21,7 +22,6 @@ import java.util.Map;
 
 import static org.portico.impl.hla1516e.types.HLA1516eTransportationTypeHandleFactory.*;
 
-import org.portico.impl.hla1516e.types.time.DoubleTime;
 import org.portico.impl.hla1516e.types.HLA1516eHandle;
 import org.portico.impl.hla1516e.types.HLA1516eParameterHandleValueMap;
 import org.portico.lrc.PorticoConstants;
@@ -82,12 +82,13 @@ public class ReceiveInteractionCallbackHandler extends HLA1516eCallbackHandler
 				              timestamp+") (TSO)" );
 			}
 			
+			LogicalTime time = helper.getLogicalTime( timestamp );
 			fedamb().receiveInteraction( new HLA1516eHandle(classHandle),
 			                             received,                  // map
 			                             request.getTag(),          // tag
 			                             OrderType.TIMESTAMP,       // sent order
 			                             RELIABLE,                  // transport
-			                             new DoubleTime(timestamp), // time 
+			                             time,                      // time 
 			                             OrderType.TIMESTAMP,       // received order
 			                             supplement );              // supplemental receive info
 		}
